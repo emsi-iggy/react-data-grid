@@ -1,14 +1,11 @@
-import rowComparer from 'common/utils/RowComparer';
 import React from 'react';
 import PropTypes from 'prop-types';
 import joinClasses from 'classnames';
 import Cell from './Cell';
-import createObjectWithProperties from './createObjectWithProperties';
 import { isFrozen } from './ColumnUtils';
 require('../../../themes/react-data-grid-row.css');
 
-// The list of the propTypes that we want to include in the Row div
-const knownDivPropertyKeys = ['height'];
+const DEFAULT_EXPANDABLE_OPTIONS = {};
 
 class Row extends React.Component {
   static displayName = 'Row';
@@ -32,7 +29,7 @@ class Row extends React.Component {
     expandedRows: PropTypes.arrayOf(PropTypes.object),
     /** Space separated list of extra css classes to apply to row */
     extraClasses: PropTypes.string,
-    /** Will force an update to the row if true */
+    /** Will force an updatef to the row if true */
     forceUpdate: PropTypes.bool,
     /** */
     subRowDetails: PropTypes.object,
@@ -60,9 +57,7 @@ class Row extends React.Component {
     height: 35
   };
 
-  shouldComponentUpdate(nextProps) {
-    return rowComparer(nextProps, this.props);
-  }
+  cells = new Map();
 
   handleDragEnter = (e) => {
     // Prevent default to allow drop
@@ -86,12 +81,14 @@ class Row extends React.Component {
     const CellRenderer = this.props.cellRenderer;
     const { idx, cellMetaData, isScrolling, row, isSelected, scrollLeft, lastFrozenColumnIndex } = this.props;
     const { key, formatter } = column;
-    const baseCellProps = { key: `${key}-${idx}`, idx: column.idx, rowIdx: idx, height: this.getRowHeight(), column, cellMetaData };
 
     const cellProps = {
-      ref: (node) => {
-        this[key] = node;
-      },
+      ref: (cell) => cell ? this.cells.set(key, cell) : this.cells.delete(key),
+      idx: column.idx,
+      rowIdx: idx,
+      height: this.getRowHeight(),
+      column,
+      cellMetaData,
       value: this.getCellValue(key || column.idx),
       rowData: row,
       isRowSelected: isSelected,
@@ -102,21 +99,23 @@ class Row extends React.Component {
       lastFrozenColumnIndex
     };
 
-    return <CellRenderer {...baseCellProps} {...cellProps} />;
+    return <CellRenderer key={`${key}-${idx}`} {...cellProps} />;
   };
 
   getCells = () => {
     const { colOverscanStartIdx, colOverscanEndIdx, columns } = this.props;
-    const frozenColumns = columns.filter(c => isFrozen(c));
-    const nonFrozenColumn = columns.slice(colOverscanStartIdx, colOverscanEndIdx + 1).filter(c => !isFrozen(c));
-    return nonFrozenColumn.concat(frozenColumns)
-      .map(column => this.getCell(column));
+    const frozenColumns = columns.filter(isFrozen);
+    const nonFrozenColumns = columns.slice(colOverscanStartIdx, colOverscanEndIdx + 1).filter(c => !isFrozen(c));
+    return nonFrozenColumns.concat(frozenColumns)
+      .map(this.getCell);
   };
 
   getRowTop = () => {
     if (this.row) {
       return this.row.offsetTop;
     }
+
+    return 0;
   };
 
   getRowHeight = () => {
@@ -147,14 +146,14 @@ class Row extends React.Component {
     if (subRowDetails) {
       return { canExpand: subRowDetails && subRowDetails.field === columnKey && ((subRowDetails.children && subRowDetails.children.length > 0) || subRowDetails.group === true), field: subRowDetails.field, expanded: subRowDetails && subRowDetails.expanded, children: subRowDetails && subRowDetails.children, treeDepth: subRowDetails ? subRowDetails.treeDepth : 0, subRowDetails: subRowDetails };
     }
-    return {};
+    return DEFAULT_EXPANDABLE_OPTIONS;
   };
 
   setScrollLeft = (scrollLeft) => {
     this.props.columns.forEach((column) => {
-      if (isFrozen(column)) {
-        if (!this[column.key]) return;
-        this[column.key].setScrollLeft(scrollLeft);
+      const { key } = column;
+      if (isFrozen(column) && this.cells.has(key)) {
+        this.cells.get(key).setScrollLeft(scrollLeft);
       }
     });
   };
@@ -163,19 +162,12 @@ class Row extends React.Component {
     this.row = el;
   };
 
-  getKnownDivProps = () => {
-    return createObjectWithProperties(this.props, knownDivPropertyKeys);
-  };
-
   render() {
     const className = joinClasses(
       'react-grid-Row',
       `react-grid-Row--${this.props.idx % 2 === 0 ? 'even' : 'odd'}`,
-      {
-        'row-selected': this.props.isSelected
-      },
-      this.props.extraClasses,
-      { 'rdg-scrolling': this.props.isScrolling }
+      this.props.isSelected && 'row-selected',
+      this.props.extraClasses
     );
 
     const style = {
@@ -183,10 +175,8 @@ class Row extends React.Component {
       overflow: 'hidden'
     };
 
-    const cells = this.getCells();
     return (
       <div
-        {...this.getKnownDivProps()}
         ref={this.setRowRef}
         className={className}
         style={style}

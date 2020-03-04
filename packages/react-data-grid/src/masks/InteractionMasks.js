@@ -21,7 +21,7 @@ import {
   selectedRangeIsSingleCell
 } from '../utils/SelectedCellUtils';
 import { isFunction } from 'common/utils';
-import { getSize, getColumn, isFrozen } from '../ColumnUtils';
+import { isFrozen } from '../ColumnUtils';
 import * as keyCodes from '../KeyCodes';
 import { CellNavigationMode, EventTypes } from 'common/constants';
 
@@ -166,7 +166,7 @@ class InteractionMasks extends React.Component {
       const { idx, rowIdx } = position;
       if (idx >= 0 && rowIdx >= 0) {
         const { columns, getRowTop } = this.props;
-        const column = getColumn(columns, idx);
+        const column = columns[idx];
         const frozen = isFrozen(column);
         if (frozen) {
           const top = getRowTop(rowIdx);
@@ -438,7 +438,7 @@ class InteractionMasks extends React.Component {
 
   isCellWithinBounds = ({ idx, rowIdx }) => {
     const { columns, rowsCount } = this.props;
-    return rowIdx >= 0 && rowIdx < rowsCount && idx >= 0 && idx < getSize(columns);
+    return rowIdx >= 0 && rowIdx < rowsCount && idx >= 0 && idx < columns.length;
   };
 
   isGridSelected = () => {
@@ -465,7 +465,7 @@ class InteractionMasks extends React.Component {
 
   selectLastCell = () => {
     const { rowsCount, columns } = this.props;
-    this.selectCell({ rowIdx: rowsCount - 1, idx: getSize(columns) - 1 });
+    this.selectCell({ rowIdx: rowsCount - 1, idx: columns.length - 1 });
   };
 
   selectCell = (cell, openEditor) => {

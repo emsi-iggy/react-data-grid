@@ -36,7 +36,6 @@ class Grid extends React.Component {
       })
     ]),
     rowsCount: PropTypes.number,
-    onRows: PropTypes.func,
     sortColumn: PropTypes.string,
     cellMetaData: PropTypes.shape(cellMetaDataShape).isRequired,
     sortDirection: PropTypes.oneOf(['ASC', 'DESC', 'NONE']),
@@ -47,7 +46,6 @@ class Grid extends React.Component {
     onSort: PropTypes.func,
     onHeaderDrop: PropTypes.func,
     rowKey: PropTypes.string.isRequired,
-    rowScrollTimeout: PropTypes.number,
     scrollToRowIndex: PropTypes.number,
     contextMenu: PropTypes.element,
     getSubRowDetails: PropTypes.func,
@@ -81,15 +79,7 @@ class Grid extends React.Component {
   };
 
   _scrollLeft = undefined;
-
-  getStyle = () => {
-    return {
-      overflow: 'hidden',
-      outline: 0,
-      position: 'relative',
-      minHeight: this.props.minHeight
-    };
-  };
+  _totalNumberColumns = this.props.columns.length;
 
   _onScroll = () => {
     if (this._scrollLeft !== undefined) {
@@ -101,15 +91,25 @@ class Grid extends React.Component {
   };
 
   areFrozenColumnsScrolledLeft(scrollLeft) {
-    return scrollLeft > 0 && this.props.columns.some(c => isFrozen(c));
+    return scrollLeft > 0 && this.props.columns.some(isFrozen);
   }
 
   onScroll = (scrollState) => {
-    this.props.onScroll(scrollState);
-    const { scrollLeft } = scrollState;
-    if (this._scrollLeft !== scrollLeft || this.areFrozenColumnsScrolledLeft(scrollLeft)) {
+    const { scrollLeft, totalNumberColumns } = scrollState;
+    const scrollLeftChanged = this._scrollLeft !== scrollLeft;
+    const totalNumberColumnsChanged = this._totalNumberColumns !== totalNumberColumns;
+
+    if (scrollLeftChanged || this.areFrozenColumnsScrolledLeft(scrollLeft)) {
       this._scrollLeft = scrollLeft;
       this._onScroll();
+    }
+
+    if (totalNumberColumnsChanged) {
+      this._totalNumberColumns = totalNumberColumns;
+    }
+
+    if (scrollLeftChanged || totalNumberColumnsChanged) {
+      this.props.onScroll(scrollState);
     }
   };
 
@@ -145,9 +145,15 @@ class Grid extends React.Component {
   render() {
     const { headerRows } = this.props;
     const EmptyRowsView = this.props.emptyRowsView;
+    const style = {
+      overflow: 'hidden',
+      outline: 0,
+      position: 'relative',
+      minHeight: this.props.minHeight
+    };
 
     return (
-      <div style={this.getStyle()} className="react-grid-Grid">
+      <div style={style} className="react-grid-Grid">
         <Header
           ref={this.setHeaderRef}
           columnMetrics={this.props.columnMetrics}
@@ -183,11 +189,9 @@ class Grid extends React.Component {
                   columnMetrics={this.props.columnMetrics}
                   totalWidth={this.props.totalWidth}
                   onScroll={this.onScroll}
-                  onRows={this.props.onRows}
                   cellMetaData={this.props.cellMetaData}
                   rowOffsetHeight={this.props.rowOffsetHeight || this.props.rowHeight * headerRows.length}
                   minHeight={this.props.minHeight}
-                  rowScrollTimeout={this.props.rowScrollTimeout}
                   scrollToRowIndex={this.props.scrollToRowIndex}
                   contextMenu={this.props.contextMenu}
                   rowSelection={this.props.rowSelection}

@@ -1,12 +1,10 @@
-import shallowCloneObject from './shallowCloneObject';
 import sameColumn from './ColumnComparer';
-import { getSize, getColumn, isFrozen, spliceColumn } from './ColumnUtils';
+import { isFrozen } from './ColumnUtils';
 import getScrollbarSize from './getScrollbarSize';
-import { isColumnsImmutable } from 'common/utils';
 
 function setColumnWidths(columns, totalWidth) {
   return columns.map(column => {
-    const colInfo = Object.assign({}, column);
+    const colInfo = { ...column };
     if (column.width) {
       if (/^([0-9]+)%$/.exec(column.width.toString())) {
         colInfo.width = Math.floor(
@@ -24,7 +22,7 @@ function setDefferedColumnWidths(columns, unallocatedWidth, minColumnWidth) {
       if (unallocatedWidth <= 0) {
         column.width = minColumnWidth;
       } else {
-        const columnWidth = Math.floor(unallocatedWidth / (getSize(defferedColumns)));
+        const columnWidth = Math.floor(unallocatedWidth / defferedColumns.length);
         if (columnWidth < minColumnWidth) {
           column.width = minColumnWidth;
         } else {
@@ -45,25 +43,21 @@ function setColumnOffsets(columns) {
   });
 }
 
-const getTotalColumnWidth = columns => columns.reduce((acc, c) => acc + c.width, 0);
-
+const getTotalColumnWidth = columns => columns.reduce((acc, c) => acc + (c.width || 0), 0);
 
 function recalculate(metrics) {
   // compute width for columns which specify width
   let columns = setColumnWidths(metrics.columns, metrics.totalWidth);
 
-  let unallocatedWidth = columns.filter(c => c.width).reduce((w, column) => w - column.width, metrics.totalWidth);
-  unallocatedWidth -= getScrollbarSize();
-  const width = columns.filter(c => c.width).reduce((w, column) => {
-    return w + column.width;
-  }, 0);
+  const width = getTotalColumnWidth(columns);
+  const unallocatedWidth = metrics.totalWidth - width - getScrollbarSize();
 
   // compute width for columns which doesn't specify width
   columns = setDefferedColumnWidths(columns, unallocatedWidth, metrics.minColumnWidth);
 
   // compute left offset
   columns = setColumnOffsets(columns);
-  const frozenColumns = columns.filter(c => isFrozen(c));
+  const frozenColumns = columns.filter(isFrozen);
   const nonFrozenColumns = columns.filter(c => !isFrozen(c));
   columns = frozenColumns.concat(nonFrozenColumns).map((c, i) => {
     c.idx = i;
@@ -86,40 +80,36 @@ function recalculate(metrics) {
  * @param {number} width
  */
 function resizeColumn(metrics, index, width) {
-  const column = getColumn(metrics.columns, index);
-  let metricsClone = shallowCloneObject(metrics);
+  const column = metrics.columns[index];
+  const metricsClone = { ...metrics };
   metricsClone.columns = metrics.columns.slice(0);
 
-  const updatedColumn = shallowCloneObject(column);
+  const updatedColumn = { ...column };
   updatedColumn.width = Math.max(width, metricsClone.minColumnWidth);
 
-  metricsClone = spliceColumn(metricsClone, index, updatedColumn);
+  metricsClone.columns.splice(index, 1, updatedColumn);
 
   return recalculate(metricsClone);
-}
-
-function areColumnsImmutable(prevColumns, nextColumns) {
-  return isColumnsImmutable(prevColumns) && isColumnsImmutable(nextColumns);
 }
 
 function compareEachColumn(prevColumns, nextColumns, isSameColumn) {
   let i;
   let len;
   let column;
-  const prevColumnsByKey = {};
-  const nextColumnsByKey = {};
+  const prevColumnsByKey = Object.create(null);
+  const nextColumnsByKey = Object.create(null);
 
 
-  if (getSize(prevColumns) !== getSize(nextColumns)) {
+  if (prevColumns.length !== nextColumns.length) {
     return false;
   }
 
-  for (i = 0, len = getSize(prevColumns); i < len; i++) {
+  for (i = 0, len = prevColumns.length; i < len; i++) {
     column = prevColumns[i];
     prevColumnsByKey[column.key] = column;
   }
 
-  for (i = 0, len = getSize(nextColumns); i < len; i++) {
+  for (i = 0, len = nextColumns.length; i < len; i++) {
     column = nextColumns[i];
     nextColumnsByKey[column.key] = column;
     const prevColumn = prevColumnsByKey[column.key];
@@ -128,7 +118,7 @@ function compareEachColumn(prevColumns, nextColumns, isSameColumn) {
     }
   }
 
-  for (i = 0, len = getSize(prevColumns); i < len; i++) {
+  for (i = 0, len = prevColumns.length; i < len; i++) {
     column = prevColumns[i];
     const nextColumn = nextColumnsByKey[column.key];
     if (nextColumn === undefined) {
@@ -139,10 +129,6 @@ function compareEachColumn(prevColumns, nextColumns, isSameColumn) {
 }
 
 function sameColumns(prevColumns, nextColumns, isSameColumn) {
-  if (areColumnsImmutable(prevColumns, nextColumns)) {
-    return prevColumns === nextColumns;
-  }
-
   return compareEachColumn(prevColumns, nextColumns, isSameColumn);
 }
 
