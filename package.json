@@ -93,6 +93,7 @@
   },
   "author": "adazzle",
   "license": "MIT",
+  "version": "6.0.1",
   "bugs": {
     "url": "https://github.com/adazzle/react-data-grid/issues"
   },
